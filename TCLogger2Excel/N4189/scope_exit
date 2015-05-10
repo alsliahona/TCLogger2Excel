@@ -1,0 +1,68 @@
+//
+// Andrew L. Sandoval & Peter Sommerlad - C++ ISO Document N4189
+// Reference: http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n4189.pdf
+// Adapted for Visual Studio 2013 by Andrew L. Sandoval
+#ifndef SCOPE_EXIT_H_
+#define SCOPE_EXIT_H_
+#pragma once
+
+#define noexcept
+#define noexcept_p(a)
+// modeled slightly after Andrescu's talk and article(s)
+namespace std
+{
+	namespace experimental
+	{
+		template <typename EF>
+		struct scope_exit
+		{
+			// construction
+			explicit scope_exit(EF &&f) noexcept : 
+				exit_function(std::move(f)),
+				execute_on_destruction{ true }
+			{
+			}
+			// move
+			scope_exit(scope_exit &&rhs) noexcept :
+				exit_function(std::move(rhs.exit_function)),
+				execute_on_destruction{ rhs.execute_on_destruction }
+			{
+				rhs.release();
+			}
+			// release
+			~scope_exit() noexcept_p(noexcept_p(this->exit_function()))
+			{
+				if(execute_on_destruction)
+				{
+					this->exit_function();
+				}
+			}
+			void release() noexcept
+			{
+				this->execute_on_destruction = false;
+			}
+		private:
+			scope_exit(scope_exit const &) = delete;
+			void operator=(scope_exit const &) = delete;
+			scope_exit& operator=(scope_exit &&) = delete;
+			EF exit_function;
+			bool execute_on_destruction; // exposition only
+		};
+
+//		C++14:
+//		template <typename EF>
+//		auto make_scope_exit(EF &&exit_function) noexcept
+//		{
+//			return scope_exit<std::remove_reference_t<EF>>(std::forward<EF>(exit_function));
+//		}
+
+//		Visual Studio 2013:
+		template <typename EF>
+		scope_exit<EF>
+		make_scope_exit(EF && exit_function) noexcept
+		{
+			return scope_exit<std::remove_reference_t<EF>>(std::forward<EF>(exit_function));
+		}
+	}
+}
+#endif // SCOPE_EXIT_H
