@@ -41,6 +41,7 @@
 #include <sys/stat.h>
 #include "boost/property_tree/xml_parser.hpp"
 #include "boost/property_tree/ptree.hpp"
+#include "boost/algorithm/string.hpp"
 #include <N4189/scope_exit>
 #include <N4189/unique_resource>
 #include <atlbase.h>
@@ -76,6 +77,33 @@ enum eDataField
 };
 
 const double g_dNewtonsPerPound = 4.44822162f;
+
+//
+// Remove characters from a name (e.g. filename) that will break Excel, such as operators
+void SanitizeStringName(std::wstring &wstrName)
+{
+	boost::replace_all(wstrName, L"-", L"_");
+	boost::replace_all(wstrName, L"+", L"_");
+	boost::replace_all(wstrName, L"*", L"_");
+	boost::replace_all(wstrName, L"/", L"_");
+	boost::replace_all(wstrName, L"=", L"_");
+	boost::replace_all(wstrName, L"$", L"_");
+	boost::replace_all(wstrName, L"#", L"_");
+	boost::replace_all(wstrName, L"~", L"_");
+	boost::replace_all(wstrName, L"^", L"_");
+	boost::replace_all(wstrName, L"&", L"_");
+	boost::replace_all(wstrName, L"!", L"_");
+	boost::replace_all(wstrName, L"@", L"_");
+	boost::replace_all(wstrName, L"(", L"_");
+	boost::replace_all(wstrName, L")", L"_");
+	boost::replace_all(wstrName, L",", L"_");
+	boost::replace_all(wstrName, L".", L"_");
+	boost::replace_all(wstrName, L"?", L"_");
+	boost::replace_all(wstrName, L":", L"_");
+	boost::replace_all(wstrName, L"[", L"_");
+	boost::replace_all(wstrName, L"]", L"_");
+	boost::replace_all(wstrName, L"|", L"_");
+}
 
 HRESULT SafeArrayPutDouble(SAFEARRAY& sa, LONG lIndex, LONG lColumn, double dValue)
 {
@@ -260,11 +288,15 @@ bool ProduceExcelWorkbook(Excel::_WorkbookPtr &pXLBook,
 	//
 	// Convert name to a wide string and assign it to the sheet
 	std::wstring wstrTabName(wstrFilename);
+	SanitizeStringName(wstrTabName);
+
+	//
+	// Remove any math operators from the name:
 	_bstr_t bstrTabName(SysAllocString(wstrTabName.c_str()));
 	pXLSheet->Name = bstrTabName;
 
 	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-	std::wstring wstrPropellantName(converter.from_bytes(strPropellant.c_str()));
+	// std::wstring wstrPropellantName(converter.from_bytes(strPropellant.c_str()));
 
 	//
 	// Create seven columns of data: Time, Thrust (LBS), Thrust (N), and Pressure (PSI), ...
@@ -1198,9 +1230,11 @@ void CreateExcelSpreadsheet(std::map<std::wstring, std::wstring> &mapProperties)
 		//
 		// Generate a workbook with data and a chart marking the 10% line, etc.
 		// If successful and there are at least 3 files we will generate a sheet with a & n and average ISP
-		if(true == ProduceExcelWorkbook(pXLBook, &wzFilename[0], strPropellantName, bMetric, tree, vReadings, mapProperties))
+		std::wstring sanitizedFilename(&wzFilename[0]);
+		SanitizeStringName(sanitizedFilename);
+		if(true == ProduceExcelWorkbook(pXLBook, sanitizedFilename, strPropellantName, bMetric, tree, vReadings, mapProperties))
 		{
-			vTabnames.push_back(&wzFilename[0]);
+			vTabnames.push_back(sanitizedFilename);
 		}
 	}
 
